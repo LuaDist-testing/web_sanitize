@@ -2,6 +2,8 @@ import insert, concat from table
 
 { tags: allowed_tags, :add_attributes, :self_closing } = require "web_sanitize.whitelist"
 
+unpack = unpack or table.unpack
+
 lpeg = require "lpeg"
 
 local escape_text
@@ -154,5 +156,5 @@ extract_text = (str) ->
   out = out\gsub "%s+", " "
   (out\match "^%s*(.-)%s*$")
 
-{ :sanitize_html, :extract_text }
+{ :sanitize_html, :extract_text, :escape_text }
 

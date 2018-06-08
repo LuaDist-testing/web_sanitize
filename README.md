@@ -1,6 +1,9 @@
 # web\_sanitize
 
-A Lua library for doing HTML and CSS sanitization using a whitelist.
+A Lua library for working with HTML and CSS. It can do HTML and CSS
+sanitization using a whitelist, along with general HTML parsing and
+transformation. It also includes a query-selector syntax (similar to jquery)
+for scanning HTML.
 
 Examples:
 
@@ -28,7 +31,7 @@ print(web_sanitize.extract_text([[<div class="cool">Hello <b>world</b>!</div>]])
 $ luarocks install web_sanitize
 ```
 
-## How
+## HTML Sanitizer
 
 `web_sanitize` tries to preserve the structure of the input as best as possible
 while sanitizing bad content. For HTML, tags that don't match a whitelist are
@@ -139,8 +142,8 @@ Similar to above, see [`css_whitelist.moon`][6]
 
 It should be pretty fast. It's powered by the wonderful library [LPEG][3].
 There is only one string concatenation on each call to `sanitize_html`. 200kb
-of HTML can be sanitized in 0.01 seconds on my computer. This makes in
-unnecessary is most circumstances to sanitize ahead of time when rendering
+of HTML can be sanitized in 0.01 seconds on my computer. This makes it
+unnecessary in most circumstances to sanitize ahead of time when rendering
 untrusted HTML.
 
 ## Tests
@@ -152,6 +155,14 @@ make test
 ```
 
 ## Changelog
+
+**Dec 27  2015** - 0.4.0
+
+* Add query and scan implementations
+* Add html rewrite interface, attribute rewriter
+* Support Lua 5.2 and above by remove direct references to unpack
+
+*Note: all of these things are undocumented at the moment, sorry. Check the specs for examples*
 
 **Feb 1 2015** - 0.3.0
 

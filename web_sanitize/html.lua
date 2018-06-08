@@ -8,6 +8,7 @@ do
   local _obj_0 = require("web_sanitize.whitelist")
   allowed_tags, add_attributes, self_closing = _obj_0.tags, _obj_0.add_attributes, _obj_0.self_closing
 end
+local unpack = unpack or table.unpack
 local lpeg = require("lpeg")
 local escape_text
 local tag_stack = { }
@@ -181,5 +182,6 @@ extract_text = function(str)
 end
 return {
   sanitize_html = sanitize_html,
-  extract_text = extract_text
+  extract_text = extract_text,
+  escape_text = escape_text
 }
