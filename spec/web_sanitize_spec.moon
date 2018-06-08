@@ -454,3 +454,75 @@ describe "web_sanitize", ->
         sanitize_html [[<iframe style="hello world">]]
       }
 
+  describe "inject attributes", ->
+    local sanitize_html, whitelist
+
+    before_each ->
+      whitelist = require("web_sanitize.whitelist")\clone!
+      import Sanitizer from require "web_sanitize.html"
+      sanitize_html = Sanitizer { :whitelist }
+
+    expect = (expected, got) ->
+      if type(expected) == "table"
+        for item in *expected
+          return true if item == got
+
+        error "expected #{got} to be one of {#{table.concat expected, "\n"}}"
+      else
+        assert.same expected, got
+
+    it "injects string attributes on tags", =>
+      whitelist.add_attributes.a = {
+        hello: "world"
+      }
+
+      whitelist.add_attributes.b = {
+        world: "two things"
+        zone: "one more"
+      }
+
+      -- no other attributes
+      expect {
+        [[<a hello="world">one</a><b world="two things" zone="one more">two</b>]]
+        [[<a hello="world">one</a><b zone="one more" world="two things">two</b>]]
+      }, sanitize_html [[<a>one</a><b>two</b>]]
+
+      -- has other attributes
+      expect {
+        [[<a title="yeah" hello="world">one</a><b title="it's here" world="two things" zone="one more">two</b>]]
+        [[<a title="yeah" hello="world">one</a><b title="it's here" zone="one more" world="two things">two</b>]]
+      }, sanitize_html [[<a title="yeah" color="blue">one</a><b height="10px" title="it's here">two</b>]]
+
+    it "injects attributes on tags by function", =>
+      whitelist.add_attributes.a = {
+        rel: (attrs) ->
+          unless (attrs.href or "")\match "itch.io"
+            "nofollow noopener"
+      }
+
+      expect {
+        [[<a title="good link" href="http://leafo.net" rel="nofollow noopener">heres a link</a><a href="http://itch.io">another link</a>]]
+      }, sanitize_html [[<a onclick="" title="good link" href="http://leafo.net">heres a link</a><a href="http://itch.io">another link</a>]]
+
+
+    it "it extracts attributes from tag for injection", =>
+      local attributes
+      whitelist.add_attributes.a = {
+        rel: (attrs) ->
+          attributes = attrs
+      }
+
+      out = sanitize_html [[
+        <a onclick="alert('hello')" title="good link" href="ftp://example.com" HREF="http://leafo.net">heres a link</a>
+      ]]
+
+      assert.same {
+        {"onclick", "alert('hello')"}
+        {"title", "good link"}
+        {"href", "ftp://example.com"}
+        {"HREF", "http://leafo.net"}
+
+        onclick: "alert('hello')"
+        title: "good link"
+        href: "http://leafo.net"
+      }, attributes

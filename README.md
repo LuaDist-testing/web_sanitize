@@ -1,9 +1,14 @@
 # web\_sanitize
 
+[![Build Status](https://travis-ci.org/leafo/web_sanitize.svg?branch=master)](https://travis-ci.org/leafo/web_sanitize)
+
 A Lua library for working with HTML and CSS. It can do HTML and CSS
 sanitization using a whitelist, along with general HTML parsing and
 transformation. It also includes a query-selector syntax (similar to jquery)
 for scanning HTML.
+
+* [HTML Sanitizer](#html-sanitizer)
+* [HTML Parser/Scanner](#html-parser)
 
 Examples:
 
@@ -141,6 +146,9 @@ The whitelist table has three important fields:
 * `add_attributes`: a table of attributes that should be inserted into a tag
 * `self_closing`: a set of tags that don't need a closing tag
 
+The `tags` field specifies tags that are possible to be used, and the
+attributes that can be on them.
+
 A attribute whitelist can be either a boolean, or a function. If it's a
 function then it takes as arguments `value`, `attribute_name`, and `tag_name`.
 If this function returns a string, then that value is used to replace the value
@@ -158,6 +166,68 @@ local whitelist = require("web_sanitize.whitelist"):clone()
 whitelist[1].style = function(value)
   return web_sanitize.sanitize_style(value)
 end
+```
+
+The `add_attributes` can be used to inject additional attributes onto a tag.
+The default whitelist contians a rule to make all links `nofollow`:
+
+```lua
+whitelist.add_attributes = {
+  a =  {
+    rel = "nofollow"
+  }
+}
+```
+
+As an example, you could change this to make it also add a `rel=noopener` as well:
+
+```lua
+whitelist.add_attributes.a = {
+  rel = "nofollow noopener"
+}
+```
+
+Add attributes can also also take a function to dynamically insert attribute
+values based on the other attributes in the tag. The function will receive one
+argument, a table of the parsed attributes. These are the attributes as written
+in the original HTML, it does not reflect any changes the sanitizer will make
+to the element. The function can return `nil` or `false` to make no changes, or
+return a string to add an attribute containing that value.
+
+Here's how you might add `nofollow noopener` to every link except those from a
+certain domain:
+
+
+```lua
+whitelist.add_attributes.a = {
+  rel = function(attr)
+    for tuple in ipairs(attr) do
+      if tuple[1]:lower() == "href" and not tuple[2]:match("^https?://leafo%.net/") then
+        return "nofollow noopener"
+      end
+    end
+  end
+}
+```
+
+The format of the attributes argument has all attributes stored as `{name,
+value}` tuples in the numeric indices, and the normalized (lowercase) attribute
+name and value stored in the hash table component. The hash table component is
+added for convenience. For security critical testing you should iterate over
+the numerical components to make sure that no attributes are being shadowed.
+
+This HTML will create the following object as the argument:
+
+    <a href="http://leafo.net" HREF="http://itch.io" onclick="alert('hi')"></a>
+
+```lua
+{
+  {"href", "http://leafo.net"},
+  {"HREF", "http://itch.io"},
+  {"onclick", "alert('hi')"},
+  href = "http://itch.io",
+  onclick = "alert('hi')",
+}
 ```
 
 ### CSS
@@ -178,6 +248,105 @@ local sanitize_html = Sanitizer({strip_tags = true})
 sanitize_html([[<body>Hello world</body>]]) --> Hello world
 ```
 
+
+## HTML Parser
+
+The HTML parser lets you extract data from, and manipulate HTML using [query
+selector
+syntax](https://developer.mozilla.org/en-US/docs/Web/API/Document/querySelector).
+
+
+The scanner interface is a lower level interface that lets you iterate through
+each node in the HTML document. It's located in the
+`web_sanitize.query.scan_html` module.
+
+
+```lua
+local scanner = require("web_sanitize.query.scan_html")
+```
+
+#### `scan_html(html_text, callback, opts)`
+
+Scans over all nodes in the `html_text`, calling the `callback` function for
+each node found. The callback recieves one argument, an instance of a
+`NodeStack`. A node stack is a Lua table holding an array of all the nodes in
+the stack, with the top most node being the current one.
+
+Each node in the node stack is an instance of `HTMLNode`. In `scan_html` the
+node is read-only, and can be used to get the properties and content of the
+node.
+
+Here's how you might get the `href` and text of every `a` tag in the html:
+
+```lua
+local urls = {}
+
+scanner.scan_html(my_html, function(stack)
+  if stack:is("a") then
+    local node = stack:current()
+
+    table.insert(urls, {
+      url = node.attr.href,
+      text = node:inner_text()
+    })
+  end
+end)
+```
+
+You can optionally enable *text nodes* to have the parser emit a node for each
+chunk of text. This includes text that is nested within a tag. Set `text_nodes`
+to `true` in an options table passed as the last argument.
+
+Text nodes have the `tag` attribute set to `""` (empty string). You can get the
+content of the node by calling either `inner_html` or `outer_html`.
+
+#### `replace_html(html_text, callback, opts)`
+
+Works the same as `scan_html`, except each node in the stack is capable of
+being mutated using the `replace_attributes`, `replace_inner_html`,
+`replace_outer_html` methods.
+
+Here's how you might conver all `a` tags that don't match a certain URL
+pattern to plain text:
+
+```lua
+scanner.replace_html(my_html, function(stack)
+  if stack:is("a") then
+    local node = stack:current()
+    let url = node.attr.href or ""
+
+    if not url:match("^https?://leafo%.net") then
+      node:replace_outer_html(node:inner_html())
+    end
+  end
+end)
+```
+
+Text nodes can also be manipulated by `replace_html`. You can enable text nodes
+by setting `text_nodes` to `true` in a options table passed as the last
+argument. The text node can be updated by either calling `replace_outer_html`
+or `replace_inner_html`.
+
+For example, you might want to write a script that converts links to `a` tags,
+but not when they're already inside an `a` tag:
+
+
+```lua
+local my_html = [[
+  text that should be a link: http://leafo.net
+  and a link that should be unchanged: <a href="https://itch.io">https://itch.io</a>
+]]
+
+local formatted_html = replace_html(my_html, function(stack)
+  local node = stack:current()
+  if node.tag == "" and not stack:is("a *, a") then
+    node:replace_outer_html(node:outer_html():gsub("(https?://[^ <\"']+)", "<a href=\"%1\">%1</a>"))
+  end
+end, { text_nodes = true })
+
+print(formatted_html)
+```
+
 ## Fast?
 
 It should be pretty fast. It's powered by the wonderful library [LPeg][3].
@@ -195,6 +364,10 @@ make test
 ```
 
 ## Changelog
+
+**Sep 08  2017** - 0.6.0
+
+* Add support for callback to `add_attributes` for dynamically injecting an attribute into a tag
 
 **May 09  2016** - 0.5.0
 
@@ -216,7 +389,7 @@ Scanner
 
 * Add query and scan implementations
 * Add html rewrite interface, attribute rewriter
-* Support Lua 5.2 and above by remove direct references to unpack
+* Support Lua 5.2 and above (removed references to global `unpack`)
 
 *Note: all of these things are undocumented at the moment, sorry. Check the specs for examples*
 
@@ -242,10 +415,10 @@ Scanner
 
 # Contact
 
-Author: Leaf Corcoran (leafo) ([@moonscript](http://twitter.com/moonscript))  
+Author: Leaf Corcoran (leafo) ([@moonscript](http://twitter.com/moonscript))
 License: MIT Copyright (c) 2015 Leaf Corcoran
-Email: leafot@gmail.com  
-Homepage: <http://leafo.net>  
+Email: leafot@gmail.com
+Homepage: <http://leafo.net>
 
 
  [1]: https://github.com/leafo/web_sanitize/blob/master/test.moon
