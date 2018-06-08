@@ -313,7 +313,7 @@ pattern to plain text:
 scanner.replace_html(my_html, function(stack)
   if stack:is("a") then
     local node = stack:current()
-    let url = node.attr.href or ""
+    local url = node.attr.href or ""
 
     if not url:match("^https?://leafo%.net") then
       node:replace_outer_html(node:inner_html())
@@ -365,7 +365,7 @@ make test
 
 ## Changelog
 
-**Sep 08  2017** - 0.6.0
+**Sep 08  2017** - 0.6.1
 
 * Add support for callback to `add_attributes` for dynamically injecting an attribute into a tag
 
@@ -408,10 +408,6 @@ Scanner
 **April 16 2014** - 0.0.1
 
 * Initial release
-
-## TODO
-
-* Automatic link conversion
 
 # Contact
 
