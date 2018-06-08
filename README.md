@@ -98,8 +98,8 @@ local safe_style = web_sanitize.sanitize_style("border: 12px; behavior:url(scrip
 
 ### HTML
 
-The default whitelist should be adequate but you can configure it. (Feel free
-to submit a pull request if there is something missing)
+The default whitelist provides a basic set of authorized HTML tags. Feel free
+to submit a pull request if there is something missing.
 
 Get access to the whitelist like so:
 
@@ -107,13 +107,39 @@ Get access to the whitelist like so:
 local whitelist = require "web_sanitize.whitelist"
 ```
 
-See [`whitelist.moon`][2] for an example of the default whitelist.
+Its recommended to make clone of the whitelist before modifying it:
 
-The returned table has three important items:
+
+```lua
+local my_whitelist = whitelist:clone()
+
+-- let iframes be used in sanitzied HTML
+my_whitelist.tags.iframe = {
+  width = true,
+  height = true,
+  frameborder = true,
+  src = true,
+}
+```
+
+In order to use your modified whitelist you'll need to instantiate a
+`Sanitizer` object directly:
+
+
+```lua
+local Sanitizer = require("web_sanitize.html").Sanitizer
+local sanitize_html = Sanitizer({whitelist = my_whitelist})
+
+sanitize_html([[<iframe src="http://leafo.net" frameborder="0"></iframe>]])
+```
+
+See [`whitelist.moon`][2] for the default whitelist.
+
+The whitelist table has three important fields:
 
 * `tags`: a table of valid tag names and their corresponding valid attributes
 * `add_attributes`: a table of attributes that should be inserted into a tag
-* `self_closing`: a set of tags that should not be automatically closed
+* `self_closing`: a set of tags that don't need a closing tag
 
 A attribute whitelist can be either a boolean, or a function. If it's a
 function then it takes as arguments `value`, `attribute_name`, and `tag_name`.
@@ -126,7 +152,7 @@ a subset of CSS:
 
 ```lua
 local web_sanitize = require "web_sanitize"
-local whitelist = require "web_sanitize.whitelist"
+local whitelist = require("web_sanitize.whitelist"):clone()
 
 -- set the default style attribute handler
 whitelist[1].style = function(value)
@@ -138,9 +164,23 @@ end
 
 Similar to above, see [`css_whitelist.moon`][6]
 
+## Customizing The Sanitizer
+
+In addition to the `whitelist` option shown above, the sanitizer has the following options:
+
+* `strip_tags` - *boolean* Remove unknown tags from output entirely, default: `false`
+* `strip_comments` - *boolean* Remove comments from output instead of escaping them, default: `false`
+
+```lua
+local Sanitizer = require("web_sanitize.html").Sanitizer
+local sanitize_html = Sanitizer({strip_tags = true})
+
+sanitize_html([[<body>Hello world</body>]]) --> Hello world
+```
+
 ## Fast?
 
-It should be pretty fast. It's powered by the wonderful library [LPEG][3].
+It should be pretty fast. It's powered by the wonderful library [LPeg][3].
 There is only one string concatenation on each call to `sanitize_html`. 200kb
 of HTML can be sanitized in 0.01 seconds on my computer. This makes it
 unnecessary in most circumstances to sanitize ahead of time when rendering
@@ -155,6 +195,22 @@ make test
 ```
 
 ## Changelog
+
+**May 09  2016** - 0.5.0
+
+Sanitizer
+
+* Add `clone` method to whitelist
+* Add `Sanitizer` constructor, with `whitelist` and `strip_tags` options
+* Add `Extractor` constructor
+
+Scanner
+
+* `replace_attributes` works correctly with boolean attributes, eg. `{allowfullscreen = true}`
+* `replace_attributes` works correctly with void tags
+* `replace_attributes` only manipulates text of opening tag, not entire tag, preventing any double edit bugs
+* attribute order is preserved when mutating attributes with `replace_attributes`
+* the `attr` object has array positional items with the names of the attributes in the order they were encountered
 
 **Dec 27  2015** - 0.4.0
 

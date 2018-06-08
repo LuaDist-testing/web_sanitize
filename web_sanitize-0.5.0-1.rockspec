@@ -1,17 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "web_sanitize"
-version = "0.4.0-1"
+version = "0.5.0-1"
 
 -- LuaDist source
 source = {
-  tag = "0.4.0-1",
+  tag = "0.5.0-1",
   url = "git://github.com/LuaDist-testing/web_sanitize.git"
 }
 -- Original source
 -- source = {
 --   url = "git://github.com/leafo/web_sanitize.git",
---   branch = "v0.4.0",
+-- 	branch = "v0.5.0",
 -- }
 
 description = {

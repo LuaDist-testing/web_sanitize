@@ -70,15 +70,19 @@ tags = {
   var: true
 }
 
--- set default as metatable for
-if default = tags[1]
+set_default = (tags) ->
+  default = tags[1]
+  return unless default
+
   mt = { __index: default }
   for k,v in pairs(tags)
     continue unless type(k) == "string"
     if type(v) == "table"
       setmetatable v, mt
     else
-      tags[k] = default
+      tags[k] = setmetatable {}, mt
+
+set_default tags
 
 add_attributes = {
   a: {
@@ -91,5 +95,14 @@ self_closing = {
   br: true, img: true, hr: true
 }
 
-{ :tags, :add_attributes, :self_closing }
+clone = (t) ->
+  return t unless type(t) == "table"
+  {k, clone v for k, v in pairs t}
+
+{
+  :tags, :add_attributes, :self_closing
+  clone: =>
+    with clone @
+      set_default .tags
+}
 

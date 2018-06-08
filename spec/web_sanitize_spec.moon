@@ -341,27 +341,107 @@ text_tests = {
   }
 }
 
-import sanitize_html, extract_text from require "web_sanitize"
+sanitize_tests_strip = {
+  {
+    [[<body><b>hello world</b></body>]]
+    "<b>hello world</b>"
+  }
+
+  {
+    "this string has no html"
+    "this string has no html"
+  }
+
+  {
+    [[<TABLE BACKGROUND="javascript:alert('XSS')">]]
+    "<TABLE></table>"
+  }
+
+  {
+    '<li><i>Hello world</li>'
+    '<li><i>Hello world</i></li>'
+  }
+
+  {
+    '<!-- comment -->Hello'
+    '&lt;!-- comment --&gt;Hello'
+  }
+
+  {
+    'hello <script dad="world"><b>yes</b></b>'
+    'hello <b>yes</b>'
+  }
+
+  {
+    [[<iframe src=http://ha.ckers.org/scriptlet.html <]]
+    '&lt;iframe src=http://ha.ckers.org/scriptlet.html &lt;'
+  }
+}
+
 
 describe "web_sanitize", ->
-  for i, {input, output} in ipairs tests
-    it "#{i}: should sanitize and match", ->
-      assert.are.equal output, sanitize_html(input)
+  describe "sanitize_html", ->
+    import sanitize_html from require "web_sanitize"
+    for i, {input, output} in ipairs tests
+      it "#{i}: should sanitize and match", ->
+        assert.are.equal output, sanitize_html(input)
+
+  describe "extract_text", ->
+    import extract_text from require "web_sanitize"
+    for i, {input, output} in ipairs text_tests
+      it "#{i}: extract text and match", ->
+        assert.are.equal output, extract_text(input)
 
 
-  for i, {input, output} in ipairs text_tests
-    it "#{i}: extract text and match", ->
-      assert.are.equal output, extract_text(input)
+  describe "sanitize_html strip tags", ->
+    local sanitize_html
+
+    setup ->
+      import Sanitizer from require "web_sanitize.html"
+      sanitize_html = Sanitizer strip_tags: true
+
+    for i, {input, output} in ipairs sanitize_tests_strip
+      it "#{i}: should sanitize and match", ->
+        assert.are.equal output, sanitize_html input
+
+  describe "whitelist", ->
+    whitelist = require "web_sanitize.whitelist"
+
+    it "clones whitelist", ->
+      wl = whitelist\clone!
+      assert.same whitelist, wl
+
+      wl.tags.b = nil
+      assert.not.same whitelist, wl
+
+    it "clones nested", ->
+      wl = whitelist\clone!
+      assert.same whitelist, wl
+
+      wl.tags.abbr.cool = true
+      assert.not.same whitelist, wl
+
+    it "updates the metatable for tags when cloning", ->
+      wl = whitelist\clone!
+      wl.tags[1].cool = true
+
+      assert.same true, wl.tags.abbr.cool
+      assert.falsy whitelist.tags.abbr.cool
 
   describe "modified whitelist", ->
+    local sanitize_html
+
     setup ->
-      whitelist = require "web_sanitize.whitelist"
+      whitelist = require("web_sanitize.whitelist")\clone!
       whitelist.tags.iframe = {
         src: true
         frameborder: true
         allowfullscreen: true
         style: (str) -> "*''#{str}''*"
       }
+
+      import Sanitizer from require "web_sanitize.html"
+      sanitize_html = Sanitizer { :whitelist }
 
     it "should sanitize", ->
       assert.same unpack {
@@ -373,6 +453,4 @@ describe "web_sanitize", ->
         [[<iframe style="*&#x27;&#x27;hello world&#x27;&#x27;*"></iframe>]]
         sanitize_html [[<iframe style="hello world">]]
       }
-
-
 

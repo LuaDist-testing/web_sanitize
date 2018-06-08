@@ -94,32 +94,35 @@ local tags = {
   ul = true,
   var = true
 }
-do
+local set_default
+set_default = function(tags)
   local default = tags[1]
-  if default then
-    local mt = {
-      __index = default
-    }
-    for k, v in pairs(tags) do
-      local _continue_0 = false
-      repeat
-        if not (type(k) == "string") then
-          _continue_0 = true
-          break
-        end
-        if type(v) == "table" then
-          setmetatable(v, mt)
-        else
-          tags[k] = default
-        end
+  if not (default) then
+    return 
+  end
+  local mt = {
+    __index = default
+  }
+  for k, v in pairs(tags) do
+    local _continue_0 = false
+    repeat
+      if not (type(k) == "string") then
         _continue_0 = true
-      until true
-      if not _continue_0 then
         break
       end
+      if type(v) == "table" then
+        setmetatable(v, mt)
+      else
+        tags[k] = setmetatable({ }, mt)
+      end
+      _continue_0 = true
+    until true
+    if not _continue_0 then
+      break
     end
   end
 end
+set_default(tags)
 local add_attributes = {
   a = {
     rel = "nofollow"
@@ -130,8 +133,26 @@ local self_closing = {
   img = true,
   hr = true
 }
+local clone
+clone = function(t)
+  if not (type(t) == "table") then
+    return t
+  end
+  local _tbl_0 = { }
+  for k, v in pairs(t) do
+    _tbl_0[k] = clone(v)
+  end
+  return _tbl_0
+end
 return {
   tags = tags,
   add_attributes = add_attributes,
-  self_closing = self_closing
+  self_closing = self_closing,
+  clone = function(self)
+    do
+      local _with_0 = clone(self)
+      set_default(_with_0.tags)
+      return _with_0
+    end
+  end
 }

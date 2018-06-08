@@ -1,6 +1,6 @@
 local void_tags
 void_tags = require("web_sanitize.data").void_tags
-local unescape_text
+local unescape_text, void_tags_set
 local NodeStack
 do
   local _class_0
@@ -82,7 +82,7 @@ do
     end,
     inner_text = function(self)
       local extract_text
-      extract_text = require("web_sanitize.html").extract_text
+      extract_text = require("web_sanitize").extract_text
       local text = extract_text(self:inner_html())
       return unescape_text:match(text) or text
     end,
@@ -94,20 +94,70 @@ do
         self.tag
       }
       local i = #buff + 1
-      for k, v in pairs(attrs) do
+      local push_attr
+      push_attr = function(name, value)
         buff[i] = " "
-        buff[i + 1] = k
-        buff[i + 2] = '="'
-        buff[i + 3] = escape_text:match(v)
-        buff[i + 4] = '"'
-        i = i + 5
+        buff[i + 1] = name
+        if value == true then
+          i = i + 2
+        else
+          buff[i + 2] = '="'
+          buff[i + 3] = escape_text:match(value)
+          buff[i + 4] = '"'
+          i = i + 5
+        end
+      end
+      local seen_attrs = { }
+      for _index_0 = 1, #attrs do
+        local _continue_0 = false
+        repeat
+          local name = attrs[_index_0]
+          local lower = name:lower()
+          if seen_attrs[lower] then
+            _continue_0 = true
+            break
+          end
+          local value = attrs[lower]
+          if not (value) then
+            _continue_0 = true
+            break
+          end
+          push_attr(name, value)
+          seen_attrs[lower] = true
+          _continue_0 = true
+        until true
+        if not _continue_0 then
+          break
+        end
+      end
+      for k, v in pairs(attrs) do
+        local _continue_0 = false
+        repeat
+          if not (type(k) == "string") then
+            _continue_0 = true
+            break
+          end
+          if not (v) then
+            _continue_0 = true
+            break
+          end
+          if seen_attrs[k] then
+            _continue_0 = true
+            break
+          end
+          push_attr(k, v)
+          _continue_0 = true
+        until true
+        if not _continue_0 then
+          break
+        end
       end
       buff[i] = ">"
-      buff[i + 1] = self:inner_html()
-      buff[i + 2] = "</"
-      buff[i + 3] = self.tag
-      buff[i + 4] = ">"
-      return self:replace_outer_html(table.concat(buff))
+      return table.insert(self.changes, {
+        self.pos,
+        self.inner_pos or self.end_pos,
+        table.concat(buff)
+      })
     end,
     replace_inner_html = function(self, replacement)
       if not (self.changes) then
@@ -156,7 +206,6 @@ do
   local _obj_0 = require("lpeg")
   C, Cs, Ct, Cmt, Cg, Cb, Cc, Cp = _obj_0.C, _obj_0.Cs, _obj_0.Ct, _obj_0.Cmt, _obj_0.Cg, _obj_0.Cb, _obj_0.Cc, _obj_0.Cp
 end
-local void_tags_set
 do
   local _tbl_0 = { }
   for _index_0 = 1, #void_tags do
@@ -224,7 +273,7 @@ scan_html = function(html_text, callback)
   local tag_stack = NodeStack()
   local fail_tag
   fail_tag = function()
-    return table.insert(tag_stack, node)
+    tag_stack[#tag_stack] = nil
   end
   local check_tag
   check_tag = function(str, _, pos, tag)
@@ -316,6 +365,7 @@ scan_html = function(html_text, callback)
     else
       top.attr[name:lower()] = true
     end
+    table.insert(top.attr, name)
     return true
   end
   local save_pos

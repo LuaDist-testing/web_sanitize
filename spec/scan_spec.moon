@@ -40,6 +40,36 @@ describe "web_sanitize.query.scan", ->
         "<div>one><span>two"
       }, visited
 
+    it "scans attributes", ->
+      expected = {
+        div: {
+          "data-dad": '"&'
+          class: "blue"
+          style: "height: 20px"
+          readonly: true
+
+          "data-dad"
+          "CLASS"
+          "style"
+          "readonly"
+        }
+        hr: {
+          allowfullscreen: true
+          id: "divider"
+
+          "id"
+          "allowfullscreen"
+        }
+      }
+
+      scan_html [[
+        <div data-dad="&quot;&amp;" CLASS="blue" style="height: 20px" readonly>
+          <hr id="divider" allowfullscreen />
+        </div>
+      ]], (stack) ->
+        node = stack\current!
+        assert.same expected[node.tag], node.attr
+
   describe "replace_html", ->
     it "replaces tag content", ->
       out = replace_html "<div>hello world</div>", (tag_stack) ->
@@ -63,7 +93,7 @@ describe "web_sanitize.query.scan", ->
 
       assert.same "<div>X</div>", out
 
-    it "replaces consecutive tags #ddd" , ->
+    it "replaces consecutive tags" , ->
       out = replace_html "<div>1</div> <pre>2</pre> <span>3</span>", (tag_stack) ->
         t = tag_stack[#tag_stack]
         t\replace_inner_html "%%#{t\inner_html!}%%"
@@ -92,6 +122,32 @@ describe "web_sanitize.query.scan", ->
           return
 
       assert.same one_of[1], out
+
+    it "replaces attributes with boolean attribute", ->
+      out = replace_html "<iframe></iframe>", (stack) ->
+        stack\current!\replace_attributes {
+          allowfullscreen: true
+        }
+
+      assert.same "<iframe allowfullscreen></iframe>", out
+
+    it "replaces attributes on void tag", ->
+      out = replace_html "<div><hr /></div>", (stack) ->
+        return unless stack\is "hr"
+        stack\current!\replace_attributes {
+          cool: "zone"
+        }
+
+      assert.same '<div><hr cool="zone"></div>', out
+
+    it "mutates existing attributes", ->
+      -- also strips the duplicates
+      out = replace_html '<div a="b" b="c" a="whw" b="&amp;&quot;"></div>', (stack) ->
+        node = stack\current!
+        node.attr.color = "green"
+        node\replace_attributes node.attr
+
+      assert.same [[<div a="whw" b="&amp;&quot;" color="green"></div>]], out
 
   describe "NodeStack", ->
     it "adds slugs ids to headers", ->

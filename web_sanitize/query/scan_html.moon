@@ -1,7 +1,7 @@
 
 import void_tags from require "web_sanitize.data"
 
-local unescape_text
+local unescape_text, void_tags_set
 
 class NodeStack
   current: =>
@@ -40,7 +40,7 @@ class HTMLNode
     @buffer\sub @inner_pos, @end_inner_pos - 1
 
   inner_text: =>
-    import extract_text from require "web_sanitize.html"
+    import extract_text from require "web_sanitize"
     text = extract_text @inner_html!
     unescape_text\match(text) or text
 
@@ -50,21 +50,38 @@ class HTMLNode
     buff = {"<", @tag}
     i = #buff + 1
 
-    for k,v in pairs attrs
+    push_attr = (name, value) ->
       buff[i] = " "
-      buff[i + 1] = k
-      buff[i + 2] = '="'
-      buff[i + 3] = escape_text\match v
-      buff[i + 4] = '"'
-      i += 5
+      buff[i + 1] = name
+
+      if value == true
+        i += 2
+      else
+        buff[i + 2] = '="'
+        buff[i + 3] = escape_text\match value
+        buff[i + 4] = '"'
+        i += 5
+
+    seen_attrs = {}
+
+    -- add ordered attributes first
+    for name in *attrs
+      lower = name\lower!
+      continue if seen_attrs[lower]
+      value = attrs[lower]
+      continue unless value
+      push_attr name, value
+      seen_attrs[lower] = true
+
+    -- add the rest
+    for k,v in pairs attrs
+      continue unless type(k) == "string"
+      continue unless v
+      continue if seen_attrs[k]
+      push_attr k,v
 
     buff[i] = ">"
-    buff[i+1] = @inner_html!
-    buff[i+2] = "</"
-    buff[i+3] = @tag
-    buff[i+4] = ">"
-
-    @replace_outer_html table.concat buff
+    table.insert @changes, {@pos, @inner_pos or @end_pos, table.concat buff}
 
   replace_inner_html: (replacement) =>
     unless @changes
@@ -121,8 +138,7 @@ scan_html = (html_text, callback) ->
   tag_stack = NodeStack!
 
   fail_tag = ->
-    -- ignore it
-    table.insert tag_stack, node
+    tag_stack[#tag_stack] = nil
 
   check_tag = (str, _, pos, tag) ->
     top = tag_stack[#tag_stack] or root_node
@@ -217,6 +233,7 @@ scan_html = (html_text, callback) ->
     else
       true
 
+    table.insert top.attr, name
     true
 
   save_pos = (field) ->
