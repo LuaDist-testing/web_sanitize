@@ -63,6 +63,12 @@ tests = {
   }
 
   {
+    '<a href="//leafo.net"></a>'
+    '<a href="//leafo.net" rel="nofollow"></a>'
+  }
+
+
+  {
     'hello <script dad="world"><b>yes</b></b>'
     'hello &lt;script dad=&quot;world&quot;&gt;<b>yes</b>&lt;/b&gt;'
   }
@@ -281,9 +287,90 @@ tests = {
 
 }
 
-import sanitize_html from require "web_sanitize"
+text_tests = {
+  {
+    "hello world"
+    "hello world"
+  }
+
+  {
+    "<b title='yeah'"
+    '&lt;b title=&#x27;yeah&#x27;'
+  }
+
+  {
+    "<p> what the heck </p> <br /> is going on"
+    'what the heck is going on'
+  }
+
+  {
+    "<b color=red>hi</b wazzaup"
+    'hi&lt;/b wazzaup'
+  }
+
+  {
+    [[<TABLE BACKGROUND="javascript:alert('XSS')">]]
+    ''
+  }
+
+  {
+    "this string has no html"
+    "this string has no html"
+  }
+
+  {
+    '<li><i>Hello world</i></li>'
+    'Hello world'
+  }
+
+  {
+    '<li><i>Hello world</li>'
+    'Hello world'
+  }
+
+  {
+    '<!-- comment -->Hello'
+    '&lt;!-- comment --&gt;Hello'
+  }
+
+  {
+    'hello <script dad="world"><b>yes</b></b>'
+    'hello yes'
+  }
+}
+
+import sanitize_html, extract_text from require "web_sanitize"
 
 describe "web_sanitize", ->
   for i, {input, output} in ipairs tests
-    it "#{i}: should match", ->
+    it "#{i}: should sanitize and match", ->
       assert.are.equal output, sanitize_html(input)
+
+
+  for i, {input, output} in ipairs text_tests
+    it "#{i}: extract text and match", ->
+      assert.are.equal output, extract_text(input)
+
+  describe "modified whitelist", ->
+    setup ->
+      whitelist = require "web_sanitize.whitelist"
+      whitelist.tags.iframe = {
+        src: true
+        frameborder: true
+        allowfullscreen: true
+        style: (str) -> "*''#{str}''*"
+      }
+
+    it "should sanitize", ->
+      assert.same unpack {
+        [[<iframe src="//www.youtube.com/embed/Ag1lwrY7d94?rel=0" frameborder="0" allowfullscreen></iframe>]]
+        sanitize_html [[<iframe src="//www.youtube.com/embed/Ag1lwrY7d94?rel=0" frameborder="0" allowfullscreen></iframe>]]
+      }
+
+      assert.same unpack {
+        [[<iframe style="*&#x27;&#x27;hello world&#x27;&#x27;*"></iframe>]]
+        sanitize_html [[<iframe style="hello world">]]
+      }
+
+
+
